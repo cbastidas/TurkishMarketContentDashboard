@@ -1,0 +1,372 @@
+
+<html><head><base href="https://websim.ai/tr-betting-trends" />
+  <title>Turkey Betting Trends Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.0/papaparse.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f0f0f0;
+    }
+    .dashboard {
+      max-width: 1200px;
+      margin: 0 auto;
+      background-color: #fff;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      padding: 20px;
+    }
+    h1, h2 {
+      color: #333;
+      text-align: center;
+    }
+    .filters {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    select, button {
+      padding: 10px;
+      border-radius: 5px;
+      border: 1px solid #ddd;
+    }
+    .blocks-container {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .block {
+      width: 30%;
+      background-color: #f9f9f9;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      padding: 15px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .block:hover {
+      background-color: #e9e9e9;
+      transform: translateY(-5px);
+    }
+    .block h3 {
+      margin-top: 0;
+      color: #333;
+    }
+    .content-area {
+      display: none;
+      margin-top: 20px;
+    }
+    .chart-container {
+      margin-bottom: 20px;
+    }
+    .chart {
+      background-color: #fff;
+      border-radius: 5px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.1);
+      padding: 10px;
+    }
+    .brand-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 20px;
+    }
+    .brand-card {
+      background-color: #f9f9f9;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      padding: 15px;
+      text-align: center;
+      transition: all 0.3s ease;
+    }
+    .brand-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+    .brand-logo {
+      width: 100px;
+      height: 100px;
+      margin: 0 auto 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      border-radius: 50%;
+      background-color: #fff;
+    }
+    .brand-logo img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    .brand-name {
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    .brand-link {
+      display: inline-block;
+      padding: 5px 10px;
+      background-color: #007bff;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 3px;
+      transition: background-color 0.3s ease;
+    }
+    .brand-link:hover {
+      background-color: #0056b3;
+    }
+    #paginationContainer {
+      display: flex;
+      justify-content: center;
+      margin-top: 20px;
+    }
+    .pagination-btn {
+      margin: 0 5px;
+      padding: 5px 10px;
+      background-color: #007bff;
+      color: #fff;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .pagination-btn:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <div class="dashboard">
+    <h1>Turkey Betting Trends Dashboard</h1>
+    <div class="filters">
+      <select id="timeFilter">
+        <option value="day">Day</option>
+        <option value="week">Week</option>
+        <option value="month">Month</option>
+        <option value="year">Year</option>
+        <option value="historic">Historic</option>
+      </select>
+      <button id="downloadBtn">Download Data</button>
+    </div>
+    <div class="blocks-container">
+      <div class="block" id="brandsBlock" tabindex="0" role="button" aria-label="View Brands trends">
+        <h3>Brands</h3>
+        <p>Click to view betting brands trends</p>
+      </div>
+      <div class="block" id="keywordsBlock" tabindex="0" role="button" aria-label="View Keywords trends">
+        <h3>Keywords</h3>
+        <p>Click to view betting keywords trends</p>
+      </div>
+      <div class="block" id="topicsBlock" tabindex="0" role="button" aria-label="View Topics trends">
+        <h3>Topics</h3>
+        <p>Click to view betting topics trends</p>
+      </div>
+    </div>
+    <div id="brandsContent" class="content-area">
+      <h2>Betting Brands Trends</h2>
+      <div class="chart-container">
+        <div class="chart">
+          <canvas id="brandsChart"></canvas>
+        </div>
+      </div>
+      <div id="brandGrid" class="brand-grid"></div>
+      <div id="paginationContainer"></div>
+    </div>
+    <div id="keywordsContent" class="content-area">
+      <h2>Betting Keywords Trends</h2>
+      <div class="chart-container">
+        <div class="chart">
+          <canvas id="keywordsChart"></canvas>
+        </div>
+      </div>
+      <ul id="keywordsList" class="data-list"></ul>
+    </div>
+    <div id="topicsContent" class="content-area">
+      <h2>Betting Topics Trends</h2>
+      <div class="chart-container">
+        <div class="chart">
+          <canvas id="topicsChart"></canvas>
+        </div>
+      </div>
+      <ul id="topicsList" class="data-list"></ul>
+    </div>
+  </div>
+
+  <script>
+    let brandsChart, keywordsChart, topicsChart;
+    let currentCategory = 'brands';
+    let currentTimeFrame = 'day';
+    let currentPage = 1;
+    const brandsPerPage = 20;
+
+    // Simulated data generator for brands with real logo URLs
+    function generateBrandsData() {
+      const brands = [
+        { name: 'Nesine', logo: 'https://www.nesine.com/Content/Images/nesine-logo.svg' },
+        { name: 'Misli', logo: 'https://www.misli.com/assets/images/misli-logo.svg' },
+        { name: 'Bilyoner', logo: 'https://www.bilyoner.com/assets/images/bilyoner-logo.svg' },
+        { name: 'Tuttur', logo: 'https://www.tuttur.com/Images/tuttur-logo.png' },
+        { name: 'Oley', logo: 'https://www.oley.com/assets/images/oley-logo.svg' },
+        { name: 'Bets10', logo: 'https://www.bets10.com/static/img/logos/bets10.svg' },
+        { name: 'Süperbahis', logo: 'https://www.superbahis.com/img/logo-superbahis.svg' },
+        { name: 'Mobilbahis', logo: 'https://www.mobilbahis.com/img/logo-mobilbahis.svg' },
+        { name: 'Youwin', logo: 'https://www.youwin.com/assets/images/youwin-logo.svg' },
+        { name: '1xBet', logo: 'https://1xbet.com/genfiles/logo/1xbet_logo.svg' },
+        { name: 'Betboo', logo: 'https://www.betboo.com/img/logo-betboo.svg' },
+        { name: 'Tipobet', logo: 'https://www.tipobet.com/img/logo-tipobet.png' },
+        { name: 'Betist', logo: 'https://www.betist.com/assets/images/betist-logo.svg' },
+        { name: 'Bahsegel', logo: 'https://www.bahsegel.com/img/logo-bahsegel.png' },
+        { name: 'Betmatik', logo: 'https://www.betmatik.com/img/logo-betmatik.svg' },
+        { name: 'Favorisen', logo: 'https://www.favorisen.com/img/logo-favorisen.png' },
+        { name: 'Betpas', logo: 'https://www.betpas.com/img/logo-betpas.svg' },
+        { name: 'Restbet', logo: 'https://www.restbet.com/img/logo-restbet.png' },
+        { name: 'Jojobet', logo: 'https://www.jojobet.com/img/logo-jojobet.svg' },
+        { name: 'Betper', logo: 'https://www.betper.com/img/logo-betper.png' },
+      ];
+
+      return brands.map(brand => ({
+        ...brand,
+        trendValue: Math.floor(Math.random() * 100),
+        website: `https://www.${brand.name.toLowerCase()}.com`
+      }));
+    }
+
+    // Update chart and content function
+    function updateChartAndContent(category, timeFrame) {
+      const brandData = generateBrandsData();
+      const chartData = brandData.slice(0, 10); // Top 10 brands for the chart
+
+      brandsChart.data.labels = chartData.map(brand => brand.name);
+      brandsChart.data.datasets[0].data = chartData.map(brand => brand.trendValue);
+      brandsChart.update();
+
+      displayBrands(brandData);
+
+      currentCategory = category;
+      currentTimeFrame = timeFrame;
+
+      // Hide all content areas and show the selected one
+      document.querySelectorAll('.content-area').forEach(el => el.style.display = 'none');
+      document.getElementById(`${category}Content`).style.display = 'block';
+    }
+
+    function displayBrands(brands) {
+      const startIndex = (currentPage - 1) * brandsPerPage;
+      const endIndex = startIndex + brandsPerPage;
+      const brandsToDisplay = brands.slice(startIndex, endIndex);
+
+      const brandGrid = document.getElementById('brandGrid');
+      brandGrid.innerHTML = brandsToDisplay.map(brand => `
+        <div class="brand-card">
+          <div class="brand-logo">
+            <img src="${brand.logo}" alt="${brand.name} logo" width="100" height="100">
+          </div>
+          <div class="brand-name">${brand.name}</div>
+          <div>Trend Value: ${brand.trendValue}</div>
+          <a href="${brand.website}" target="_blank" class="brand-link">Visit Website</a>
+        </div>
+      `).join('');
+
+      updatePagination(brands.length);
+    }
+
+    function updatePagination(totalBrands) {
+      const totalPages = Math.ceil(totalBrands / brandsPerPage);
+      const paginationContainer = document.getElementById('paginationContainer');
+      paginationContainer.innerHTML = `
+        <button class="pagination-btn" id="prevBtn" ${currentPage === 1 ? 'disabled' : ''}>Previous</button>
+        <span>Page ${currentPage} of ${totalPages}</span>
+        <button class="pagination-btn" id="nextBtn" ${currentPage === totalPages ? 'disabled' : ''}>Next</button>
+      `;
+
+      document.getElementById('prevBtn').addEventListener('click', () => {
+        if (currentPage > 1) {
+          currentPage--;
+          updateChartAndContent('brands', currentTimeFrame);
+        }
+      });
+
+      document.getElementById('nextBtn').addEventListener('click', () => {
+        if (currentPage < totalPages) {
+          currentPage++;
+          updateChartAndContent('brands', currentTimeFrame);
+        }
+      });
+    }
+
+    // Initial chart setup
+    window.onload = function() {
+      const ctx = document.getElementById('brandsChart').getContext('2d');
+      brandsChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: [],
+          datasets: [{
+            label: 'Brand Trend Value',
+            data: [],
+            backgroundColor: 'rgba(75, 192, 192, 0.6)',
+            borderColor: 'rgba(75, 192, 192, 1)',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          }
+        }
+      });
+
+      // Initial update
+      updateChartAndContent('brands', 'day');
+    }
+
+    // Block click handlers
+    document.getElementById('brandsBlock').addEventListener('click', () => {
+      currentPage = 1;
+      updateChartAndContent('brands', currentTimeFrame);
+    });
+    document.getElementById('keywordsBlock').addEventListener('click', () => updateChartAndContent('keywords', currentTimeFrame));
+    document.getElementById('topicsBlock').addEventListener('click', () => updateChartAndContent('topics', currentTimeFrame));
+
+    // Keyboard accessibility for blocks
+    ['brandsBlock', 'keywordsBlock', 'topicsBlock'].forEach(id => {
+      document.getElementById(id).addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          if (id === 'brandsBlock') currentPage = 1;
+          updateChartAndContent(id.replace('Block', ''), currentTimeFrame);
+        }
+      });
+    });
+
+    // Time filter functionality
+    document.getElementById('timeFilter').addEventListener('change', function(e) {
+      updateChartAndContent(currentCategory, e.target.value);
+    });
+
+    // Download functionality
+    document.getElementById('downloadBtn').addEventListener('click', function() {
+      const brandData = generateBrandsData();
+      
+      const csv = Papa.unparse({
+        fields: ["Brand Name", "Trend Value", "Website", "Logo URL"],
+        data: brandData.map(brand => [brand.name, brand.trendValue, brand.website, brand.logo])
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement("a");
+      if (link.download !== undefined) {
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", `turkey_betting_brands_${currentTimeFrame}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    });
+  </script>
